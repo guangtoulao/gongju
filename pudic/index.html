@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TVBox 加站助手</title>
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --border: #e3e8ef;
+    --primary: #2f6fed;
+    --primary-d: #2257c4;
+    --text: #1f2733;
+    --muted: #6b7785;
+    --ok: #1f9d55;
+    --warn: #c97a16;
+    --err: #d6453d;
+    --code-bg: #0f172a;
+    --code-fg: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 32px 20px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(16,24,40,.04);
+  }
+  .row { display: flex; gap: 10px; align-items: center; }
+  input[type="text"], select {
+    flex: 1;
+    padding: 11px 13px;
+    font-size: 15px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+    background: #fff;
+    color: var(--text);
+  }
+  select { flex: 0 0 auto; min-width: 140px; }
+  input[type="text"]:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(47,111,237,.12); }
+  button {
+    border: none;
+    border-radius: 8px;
+    padding: 11px 18px;
+    font-size: 15px;
+    cursor: pointer;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-d); }
+  .btn-ghost { background: #eef2f8; color: var(--text); }
+  .btn-ghost:hover { background: #e2e8f2; }
+  .actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+  pre {
+    margin-top: 12px;
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 16px;
+    border-radius: 10px;
+    overflow: auto;
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre;
+    max-height: 460px;
+  }
+  .status { margin-top: 16px; font-size: 14px; padding: 12px 14px; border-radius: 8px; display: none; }
+  .status.ok { display: block; background: #e7f6ee; color: var(--ok); border: 1px solid #b7e3c8; }
+  .status.warn { display: block; background: #fdf3e3; color: var(--warn); border: 1px solid #f0d9ad; }
+  .status.err { display: block; background: #fdecea; color: var(--err); border: 1px solid #f3c4c0; }
+  .status b { font-weight: 700; }
+  .field-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .field-label code { background: #eef2f8; padding: 1px 6px; border-radius: 4px; color: var(--text); }
+  .hint { margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .hint code { background: #eef2f8; padding: 1px 6px; border-radius: 4px; color: var(--text); }
+  .note { margin-top: 18px; font-size: 13px; color: var(--muted); background: #f0f4fa; border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .note b { color: var(--text); }
+  .divider { height: 1px; background: var(--border); margin: 18px 0; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>TVBox 加站助手</h1>
+    <div class="sub">输入任意影视站 → 自动识别前端框架 → 套模板生成 drpy2 rule 文件 + 可插入配置的 site 条目。</div>
+
+    <div class="card">
+      <div class="row">
+        <input type="text" id="url" placeholder="影视站网址，如 https://example.com" autocomplete="off" />
+        <input type="text" id="name" placeholder="站点显示名（可选）" autocomplete="off" style="flex:.55" />
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <label class="field-label" style="flex:0 0 auto;">接入配置集</label>
+        <select id="target">
+          <option value="api">api.json</option>
+          <option value="tv">tv.json</option>
+          <option value="仅供测试">仅供测试.json</option>
+        </select>
+        <button class="btn-primary" id="go">生成</button>
+      </div>
+
+      <div class="status" id="status"></div>
+
+      <div id="detectBox" style="display:none; margin-top:16px;">
+        <div class="field-label">识别结果：<span id="fw" style="color:var(--text); font-weight:600;"></span></div>
+        <div class="row" style="margin-top:10px;">
+          <label class="field-label" style="flex:0 0 auto;">套用模板</label>
+          <select id="theme"></select>
+          <button class="btn-ghost" id="regen">用此模板重新生成</button>
+        </div>
+      </div>
+
+      <div id="ruleBox" style="display:none; margin-top:18px;">
+        <div class="field-label">① rule 文件 —— 存为 <code id="ruleFile"></code>，放进对应 <code>lib/</code> 目录</div>
+        <pre id="ruleOut"></pre>
+        <div class="actions">
+          <button class="btn-ghost" id="copyRule">复制 rule</button>
+          <button class="btn-ghost" id="dlRule">下载 .js</button>
+        </div>
+      </div>
+
+      <div id="siteBox" style="display:none; margin-top:18px;">
+        <div class="divider"></div>
+        <div class="field-label">② site 条目 —— 加进 <code id="siteTarget"></code> 的 <code>sites</code> 数组</div>
+        <pre id="siteOut"></pre>
+        <div class="actions">
+          <button class="btn-ghost" id="copySite">复制 site 条目</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>它怎么工作：</b>抓取目标站首页，识别它用的苹果CMS 前端主题（myui / stui / fed / hl / module / 短视频），
+      套你 <code>模板.js</code> 里对应的选择器骨架生成明文 drpy2 rule；云朵 / App 类加密站则走 <code>csp_App3Q</code> 风格条目。<br />
+      <b>用法：</b>① 把 rule 文件下载后放进 TVBox 配置目录的 <code>lib/</code>（与 <code>drpy2.min.js</code> 同级）；
+      ② 把 site 条目粘进对应 <code>*.json</code> 的 <code>sites</code> 数组。绝大多数标准站套模板即可用，个别路径差异需在 TVBox 里微调 <code>url/searchUrl</code>。
+    </div>
+
+    <div class="hint">
+      提示：云朵类条目里的 <code>finger / sk / updateId</code> 需按该站抓包填；确保你的 <code>custom_spider.jar</code> 已内置 App3Q。
+    </div>
+  </div>
+
+<script>
+  const $url = document.getElementById('url');
+  const $name = document.getElementById('name');
+  const $target = document.getElementById('target');
+  const $go = document.getElementById('go');
+  const $regen = document.getElementById('regen');
+  const $status = document.getElementById('status');
+  const $detectBox = document.getElementById('detectBox');
+  const $fw = document.getElementById('fw');
+  const $theme = document.getElementById('theme');
+  const $ruleBox = document.getElementById('ruleBox');
+  const $ruleOut = document.getElementById('ruleOut');
+  const $ruleFile = document.getElementById('ruleFile');
+  const $siteBox = document.getElementById('siteBox');
+  const $siteOut = document.getElementById('siteOut');
+  const $siteTarget = document.getElementById('siteTarget');
+  let lastRule = '', lastRuleName = 'rule.js', lastSite = '', lastTarget = 'api';
+
+  function setStatus(type, html) {
+    $status.className = 'status ' + type;
+    $status.innerHTML = html;
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function showResult(data) {
+    lastRule = data.ruleText || '';
+    lastRuleName = data.fileName || 'rule.js';
+    lastSite = data.siteEntryText || '';
+    lastTarget = data.target || 'api';
+    if (data.framework === 'applecms') {
+      $ruleFile.textContent = lastRuleName;
+      $ruleOut.textContent = lastRule;
+      $ruleBox.style.display = 'block';
+      $siteTarget.textContent = lastTarget + '.json';
+      $siteOut.textContent = lastSite;
+      $siteBox.style.display = 'block';
+    } else if (data.framework === 'yunduo-app') {
+      $ruleBox.style.display = 'none';
+      $siteTarget.textContent = lastTarget + '.json';
+      $siteOut.textContent = lastSite;
+      $siteBox.style.display = 'block';
+    }
+  }
+  async function doGenerate(themeVal) {
+    const url = $url.value.trim();
+    const name = $name.value.trim();
+    const target = $target.value;
+    if (!url) { setStatus('err', '请先输入影视网站地址。'); return; }
+    $regen.disabled = true;
+    $regen.textContent = '生成中…';
+    try {
+      const params = new URLSearchParams({ url, name, theme: themeVal, target });
+      const resp = await fetch('/api/generate?' + params.toString());
+      const data = await resp.json();
+      if (!data.ok) { setStatus('err', '<b>❌ 生成失败</b><br>' + escapeHtml(data.message || '未知错误')); return; }
+      setStatus('ok', '<b>✅ 已生成</b>　' + escapeHtml(data.message || ''));
+      showResult(data);
+    } catch (e) {
+      setStatus('err', '请求失败：' + escapeHtml(String(e)));
+    } finally {
+      $regen.disabled = false;
+      $regen.textContent = '用此模板重新生成';
+    }
+  }
+  async function run() {
+    const url = $url.value.trim();
+    if (!url) { setStatus('err', '请先输入影视网站地址。'); return; }
+    $go.disabled = true; $go.textContent = '识别中…';
+    $ruleBox.style.display = 'none'; $siteBox.style.display = 'none'; $detectBox.style.display = 'none';
+    setStatus('', '');
+    try {
+      const resp = await fetch('/api/detect?' + new URLSearchParams({ url }).toString());
+      const data = await resp.json();
+      if (data.framework === 'applecms') {
+        $fw.textContent = '苹果CMS 标准站' + (data.theme ? '（推荐模板：' + escapeHtml(data.theme) + '）' : '');
+        setStatus('ok', '<b>✅ 苹果CMS 标准站</b>　站点：' + escapeHtml(data.host || '') +
+          (data.title ? '　标题：' + escapeHtml(data.title) : '') + '<br>' + escapeHtml(data.message || ''));
+        fillThemes(data.themes || [], data.theme || '默认');
+        $detectBox.style.display = 'block';
+        await doGenerate(data.theme || '默认');
+      } else if (data.framework === 'yunduo-app') {
+        $fw.textContent = '云朵 / App 类加密站';
+        setStatus('ok', '<b>✅ 云朵类 App 接口站</b>　站点：' + escapeHtml(data.host || '') + '<br>' + escapeHtml(data.message || ''));
+        $detectBox.style.display = 'none';
+        await doGenerate('yunduo-app');
+      } else if (data.framework === 'unknown') {
+        $fw.textContent = '未识别';
+        setStatus('warn', '<b>⚠️ 未识别框架</b><br>' + escapeHtml(data.message || '该站可能不是已知框架，或网络不可达。可手动选模板后生成。'));
+        fillThemes(data.themes || [], '默认');
+        $detectBox.style.display = 'block';
+      } else {
+        setStatus('err', '<b>❌ 处理失败</b><br>' + escapeHtml(data.message || '未知错误'));
+      }
+    } catch (e) {
+      setStatus('err', '请求失败：' + escapeHtml(String(e)));
+    } finally {
+      $go.disabled = false; $go.textContent = '生成';
+    }
+  }
+  function fillThemes(themes, selected) {
+    $theme.innerHTML = '';
+    (themes || []).forEach(t => {
+      const o = document.createElement('option');
+      o.value = t; o.textContent = t;
+      if (t === selected) o.selected = true;
+      $theme.appendChild(o);
+    });
+  }
+  $go.addEventListener('click', run);
+  $url.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+  $regen.addEventListener('click', () => doGenerate($theme.value));
+
+  document.getElementById('copyRule').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(lastRule); setStatus('ok', '<b>rule 已复制</b>'); }
+    catch (e) { setStatus('err', '复制失败，请手动选择复制。'); }
+  });
+  document.getElementById('dlRule').addEventListener('click', () => {
+    const blob = new Blob([lastRule], { type: 'application/javascript' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = lastRuleName || 'rule.js';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  document.getElementById('copySite').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(lastSite); setStatus('ok', '<b>site 条目已复制</b>'); }
+    catch (e) { setStatus('err', '复制失败，请手动选择复制。'); }
+  });
+</script>
+</body>
+</html>
