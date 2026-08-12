@@ -1,0 +1,15 @@
+{
+  "name": "tvbox-site-adder",
+  "version": "1.0.0",
+  "description": "TVBox 影视站配置生成器 / 加站助手：输入任意影视站网址，自动识别前端框架，套 drpy2 模板生成 rule 与 site 条目；云朵类 App 接口站走 csp 条目。",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "license": "MIT"
+}
